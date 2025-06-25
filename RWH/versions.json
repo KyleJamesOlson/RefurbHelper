@@ -1,19 +1,19 @@
 {
   "modules": {
     "parser.py": {
-      "version": "1.0.2",
+      "version": "1.0.0",
       "sha256": "4952ad57a072f3b279e94fe8b39767b19c02cb0a3e2aebf56e80013c3a52e038",
-      "path": "parser.py"
+      "path": "RWH/parser.py"
     },
     "template.py": {
-      "version": "1.0.2",
+      "version": "1.0.0",
       "sha256": "8d5a8c010071c9464c7cef5f3d8f31031d597bf2319f80fa8e3d711885660345",
-      "path": "template.py"
+      "path": "RWH/template.py"
     },
     "utils.py": {
-      "version": "1.0.2",
+      "version": "1.0.0",
       "sha256": "14f7cdc3cea5824a2f09ff674fa2891244b73b9ad249633ae2781a1622cf6fa4",
-      "path": "utils.py"
+      "path": "RWH/utils.py"
     }
   }
 }
