@@ -13,6 +13,7 @@ from PIL import Image, ImageTk
 import win32gui
 import win32con
 from datetime import datetime
+import requests
 
 # Constants for window styles
 GWL_EXSTYLE = -20
@@ -23,13 +24,13 @@ WS_EX_TOOLWINDOW = 0x00000080
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Update configuration
-SERVER_PATH = r"\\192.168.5.70\SE Stuff\RWH"
+GITHUB_REPO = "https://api.github.com/repos/KyleJamesOlson/RefurbHelper/contents/RWH"
 LOCAL_CACHE = os.path.join(os.path.dirname(sys.executable), "module_cache")
 VERSIONS_FILE = "versions.json"
 CURRENT_VERSIONS = {
-    "parser.py": "1.0.2",
-    "template.py": "1.0.2",
-    "utils.py": "1.0.2"
+    "parser.py": "1.0.0",
+    "template.py": "1.0.0",
+    "utils.py": "1.0.0"
 }
 
 def calculate_sha256(file_path):
@@ -52,21 +53,37 @@ def load_module(module_name, file_path):
 def check_for_updates():
     try:
         os.makedirs(LOCAL_CACHE, exist_ok=True)
-        versions_path = os.path.join(SERVER_PATH, VERSIONS_FILE)
-        if not os.path.exists(versions_path):
-            logging.warning(f"Versions file not found at {versions_path}")
-            return
-        with open(versions_path, 'r') as f:
-            server_versions = json.load(f).get("modules", {})
-        for module_name, info in server_versions.items():
-            server_version = info["version"]
-            server_sha256 = info["sha256"]
-            server_file = os.path.join(SERVER_PATH, info["path"])
+        api_url = GITHUB_API_URL
+        logging.debug(f"Checking updates from API: {api_url}")
+        response = requests.get(api_url, timeout=10)
+        response.raise_for_status()  # Raise an exception for bad status codes (e.g., 404)
+        contents = response.json()
+        logging.debug(f"API response: {contents}")
+
+        # Fetch versions.json to get version and SHA information
+        versions_url = next(item["download_url"] for item in contents if item["name"] == VERSIONS_FILE)
+        versions_response = requests.get(versions_url, timeout=10)
+        versions_response.raise_for_status()
+        server_versions = versions_response.json().get("modules", {})
+        logging.debug(f"Loaded versions: {server_versions}")
+
+        for item in contents:
+            module_name = item["name"]
+            if module_name not in ["parser.py", "template.py", "utils.py"]:
+                continue
+            server_info = server_versions.get(module_name, {})
+            server_version = server_info.get("version", "0.0.0")
+            server_sha256 = server_info.get("sha256", "")
+            server_url = item["download_url"]
             local_file = os.path.join(LOCAL_CACHE, module_name)
             current_version = CURRENT_VERSIONS.get(module_name, "0.0.0")
-            if server_version > current_version and os.path.exists(server_file):
+            logging.debug(f"Checking {module_name}: Current={current_version}, Server={server_version}")
+            if server_version > current_version:
                 logging.info(f"Update available for {module_name}: {current_version} -> {server_version}")
-                shutil.copy2(server_file, local_file)
+                response = requests.get(server_url, timeout=10)
+                response.raise_for_status()
+                with open(local_file, 'wb') as f:
+                    f.write(response.content)
                 local_sha256 = calculate_sha256(local_file)
                 if local_sha256 != server_sha256:
                     logging.error(f"Checksum mismatch for {module_name}. Discarding update.")
@@ -87,9 +104,13 @@ def check_for_updates():
                     elif module_name == "utils.py":
                         globals()['replace_in_runs'] = module.replace_in_runs
                         globals()['process_element'] = module.process_element
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Update check failed (network issue): {str(e)}", exc_info=True)
+        messagebox.showwarning("Update Warning", "Failed to check for updates from GitHub. Using default modules.")
     except Exception as e:
-        logging.error(f"Update check failed: {str(e)}")
+        logging.error(f"Update check failed: {str(e)}", exc_info=True)
         messagebox.showwarning("Update Warning", "Failed to check for updates. Using default modules.")
+
 
 # Fallback to bundled modules
 if getattr(sys, 'frozen', False):
